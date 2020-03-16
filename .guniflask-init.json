@@ -1,0 +1,7 @@
+{
+  "authentication_type": "jwt",
+  "guniflask_version": "0.6.0",
+  "jwt_secret": "lAl0jfk7O5ylcdRsu3kXRT_0iqTl_n44nG98YBbXjOQ",
+  "port": 8066,
+  "project_name": "pytorch_serving"
+}

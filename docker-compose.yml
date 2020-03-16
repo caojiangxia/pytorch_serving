@@ -1,0 +1,6 @@
+version: '3'
+services:
+  pytorch_serving:
+    build: .
+    ports:
+      - 8066:8066
