@@ -1,10 +1,9 @@
 # coding=utf-8
 
 from guniflask.context import service
-
 from pytorch_serving.pathutils import PathUtils
 from pytorch_serving.resource_manager import ResourceManager
-
+from PytorchOnnxService import PytorchOnnxInferenceService
 
 @service
 class ModelManager:
@@ -19,13 +18,15 @@ class ModelManager:
     def __init__(self, resource_manager: ResourceManager):
         self.resource_manager = resource_manager
         self.path_utils = PathUtils()
-
-    def save_model(self):
+        self.ModelServer = {}
+    def save_model(self, model_name, model_file, metadata):
         """
         1. save & replace
         2. load / reload
         """
-        pass
+        model_path = self.path_utils.model_data_dir(model_name)
+        # 存一个文件？ 有些问题。。 这里少了几步.需要修改
+        self.load_models(model_name,model_path, metadata)
 
     def delete_model(self):
         """
@@ -34,14 +35,16 @@ class ModelManager:
         """
         pass
 
-    def load_models(self):
+    def load_models(self,model_name,model_path,metadata):
         """
         load one by one
         """
-        pass
+        self.ModelServer[model_name] = PytorchOnnxInferenceService(model_name, model_path, metadata, self.resource_manager.cuda_recommendation())
 
-    def model_inference(self):
-        pass
+    def model_inference(self, model_name, data):
+        if self.ModelServer.get(model_name, None) is None :
+            return "Serving is not loaded the model, please check the model name"
+        return self.ModelServer[model_name].inference(data)
 
     def _do_save_model(self):
         pass

@@ -30,7 +30,7 @@ class PathUtils(object):
     @property
     @create_if_not_exists
     def models_dir(self):
-        return join(self.home_dir, ".models")
+        return join(self.home_dir, "_models")
 
     @create_if_not_exists
     def model_data_dir(self, model_name):

@@ -12,3 +12,6 @@ class ResourceManager:
 
     def __init__(self):
         pass
+
+    def cuda_recommendation(self):
+        pass
