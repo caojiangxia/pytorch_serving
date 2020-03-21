@@ -17,7 +17,7 @@ class PytorchOnnxInferenceService(AbstractInferenceService):
     The service to load ONNX model and make inference with pytorch-caffe2 backend.
     """
 
-    def __init__(self, model_name, model_base_path, use_cuda=False, verbose=False):
+    def __init__(self, model_name, model_base_path, metadata, use_cuda=False, verbose=False):
         """
         Initialize the service.
 
