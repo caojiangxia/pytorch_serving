@@ -3,8 +3,9 @@
 from guniflask.context import service
 from pytorch_serving.pathutils import PathUtils
 from pytorch_serving.resource_manager import ResourceManager
-from PytorchOnnxService import PytorchOnnxInferenceService
+from pytorch_serving.PytorchOnnxService import PytorchOnnxInferenceService
 import torch
+import torch.onnx
 import json
 
 @service
@@ -27,6 +28,7 @@ class ModelManager:
         2. load / reload
         """
         model_path = self.path_utils.model_data_dir(model_name)
+        print(model_path)
         self._change_pytorch_model_to_onnx(model_path+ "/" + model_name, pytorch_model, metadata)
         self.load_models(model_name,model_path, metadata)
 
@@ -50,9 +52,14 @@ class ModelManager:
 
     def _change_pytorch_model_to_onnx(self,model_path,pytorch_model,metadata):
         pytorch_model.eval()
+        model_input = []
+        for x in metadata["input"]:
+            model_input.append(torch.tensor(x))
+        model_input = tuple(model_input)
         # Export the model
+        print(model_input)
         torch.onnx.export(pytorch_model,  # model being run
-                          metadata["input"],  # model input (or a tuple for multiple inputs)
+                          model_input,  # model input (or a tuple for multiple inputs)
                           model_path+".onnx",  # where to save the model (can be a file or file-like object)
                           export_params=True,  # store the trained parameter weights inside the model file
                           opset_version=10,  # the ONNX version to export the model to
@@ -60,7 +67,7 @@ class ModelManager:
                           input_names=metadata["input_names"],  # the model's input names
                           output_names=metadata["output_names"],  # the model's output names
                           )
-        json.dumps(metadata,open(model_path+".meta","w",encoding="utf-8"))
+        json.dump(metadata,open(model_path+".meta","w",encoding="utf-8"))
 
     def _do_load_model(self):
         pass

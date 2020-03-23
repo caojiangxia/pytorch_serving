@@ -24,8 +24,9 @@ class PathUtils(object):
     """
 
     @property
+    @create_if_not_exists
     def home_dir(self):
-        return settings['home']
+        return "storage"
 
     @property
     @create_if_not_exists

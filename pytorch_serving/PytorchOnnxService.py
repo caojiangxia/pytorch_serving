@@ -4,9 +4,10 @@ import os
 import time
 import json
 import numpy as np
+
 from collections import namedtuple
 
-from AbstractService import AbstractInferenceService
+from pytorch_serving.AbstractService import AbstractInferenceService
 
 # Lazy init
 NUMPY_DTYPE_MAP = {}
@@ -34,8 +35,8 @@ class PytorchOnnxInferenceService(AbstractInferenceService):
 
         self.model_name = model_name
         self.model_base_path = model_base_path
+        self.metadata = metadata
         self.model_version_list = []
-
         self.model_version_dict = {}
         self.model_dict = {}
         self.executor_dict = {}
@@ -49,11 +50,13 @@ class PytorchOnnxInferenceService(AbstractInferenceService):
 
         # Find available models
         model_path_list = []
+        #print("qweqwe",model_base_path)
         if os.path.isdir(self.model_base_path):
-            for filename in os.path.listdir(self.model_base_path):
+            for filename in os.listdir(self.model_base_path):
                 if filename.endswith(".onnx"):
                     path = os.path.join(self.model_base_path, filename)
                     logging.info("Found onnx model: {}".format(path))
+                    print("Found onnx model: {}".format(path))
                     model_path_list.append(path)
             if len(model_path_list) == 0:
                 logging.error("No onnx model found in {}".format(self.model_base_path))
@@ -70,6 +73,8 @@ class PytorchOnnxInferenceService(AbstractInferenceService):
                 version = str(count)
                 model, executor, signature = self.load_model(model_path)
                 logging.info("Load onnx model: {}, signature: {}".format(
+                    model_path, json.dumps(signature)))
+                print("Load onnx model: {}, signature: {}".format(
                     model_path, json.dumps(signature)))
                 self.model_version_dict[version] = model_path
                 self.model_dict[version] = model
@@ -95,14 +100,13 @@ class PytorchOnnxInferenceService(AbstractInferenceService):
         })
 
     def load_model(self, model_path):
-        # TODO: Import as needed and only once
         import onnx
         import caffe2.python.onnx.backend as backend
-
         # Load model
+        print(model_path)
         model = onnx.load(model_path)
+        print(model)
         onnx.checker.check_model(model)
-
         # Genetate signature
         signature = {"inputs": [], "outputs": []}
         for input in model.graph.input:
@@ -134,6 +138,7 @@ class PytorchOnnxInferenceService(AbstractInferenceService):
 
         # Build model executor
         executor = backend.prepare(model)
+
         return model, executor, signature
 
     def inference(self, json_data):

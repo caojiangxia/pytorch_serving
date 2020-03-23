@@ -14,7 +14,7 @@ class ResourceManager:
     """
 
     def __init__(self):
-        Gpus = GPUtil.getGPUs()
+        self.Gpus = GPUtil.getGPUs()
 
     def get_cpu_info(self):
         ''' :return:
@@ -53,6 +53,7 @@ class ResourceManager:
             gpulist.append([gpu.id, gpu.memoryTotal, gpu.memoryUsed, gpu.memoryUtil * 100])
 
         for id ,gpu in enumerate(gpulist):
+
             if remain < gpu[1] - gpu[2] :
                 remain = gpu[1] - gpu[2]
                 recommendation_id = id
