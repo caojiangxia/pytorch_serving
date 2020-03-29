@@ -4,6 +4,7 @@ from guniflask.context import service
 from pytorch_serving.pathutils import PathUtils
 from pytorch_serving.resource_manager import ResourceManager
 from pytorch_serving.PytorchOnnxService import PytorchOnnxInferenceService
+from pytorch_serving.PytorchService import PytorchInferenceService
 import torch
 import torch.onnx
 import json
@@ -22,15 +23,17 @@ class ModelManager:
         self.resource_manager = resource_manager
         self.path_utils = PathUtils()
         self.ModelServer = {}
-    def save_model(self, model_name, pytorch_model, metadata):
+    def save_model(self, model_name, pytorch_model, metadata, version, platform):
         """
         1. save & replace
         2. load / reload
         """
         model_path = self.path_utils.model_data_dir(model_name)
-        print(model_path)
-        self._change_pytorch_model_to_onnx(model_path+ "/" + model_name, pytorch_model, metadata)
-        self.load_models(model_name,model_path, metadata)
+        if platform is "torch":
+            self._do_save_model(model_path + "/" + str(version), pytorch_model, metadata)
+        # elif platform is "torch_onnx":
+        #    self._change_pytorch_model_to_onnx(model_path+ "/" + model_name, pytorch_model, metadata)
+        self.load_models(model_name,model_path, metadata, platform)
 
     def delete_model(self):
         """
@@ -39,16 +42,16 @@ class ModelManager:
         """
         pass
 
-    def load_models(self,model_name,model_path,metadata):
+    def load_models(self,model_name,model_path,metadata, platform):
         """
         load one by one
         """
-        self.ModelServer[model_name] = PytorchOnnxInferenceService(model_name, model_path, metadata, self.resource_manager.cuda_recommendation())
+        self.ModelServer[model_name] = PytorchInferenceService(model_name, model_path, metadata, self.resource_manager.cuda_recommendation())
 
-    def model_inference(self, model_name, data):
+    def model_inference(self, model_name, version, data):
         if self.ModelServer.get(model_name, None) is None :
             return "Serving is not loaded the model, please check the model name"
-        return self.ModelServer[model_name].inference(data)
+        return self.ModelServer[model_name].inference(version,data)
 
     def _change_pytorch_model_to_onnx(self,model_path,pytorch_model,metadata):
         pytorch_model.eval()
@@ -68,6 +71,11 @@ class ModelManager:
                           output_names=metadata["output_names"],  # the model's output names
                           )
         json.dump(metadata,open(model_path+".meta","w",encoding="utf-8"))
+
+    def _do_save_model(self,model_path,pytorch_model,metadata):
+        pytorch_model.eval()
+        torch.save(pytorch_model, model_path + ".pt")
+        json.dump(metadata, open(model_path + ".meta", "w", encoding="utf-8"))
 
     def _do_load_model(self):
         pass

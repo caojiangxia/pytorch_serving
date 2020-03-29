@@ -9,6 +9,7 @@ from guniflask.web import blueprint, post_route
 from pytorch_serving.model_manager import ModelManager
 from pytorch_serving.resource_manager import ResourceManager
 import torch
+import paramiko
 
 @blueprint('/api')
 class PytorchServing:
@@ -25,11 +26,15 @@ class PytorchServing:
 
         multipart
         """
+        # 这里需要做些调整！
         data = request.json
         metadata = data["meta_data"]
         pytorch_model = data["pytorch_model"]
         model_name = data["model_name"]
-        self.model_manager.save_model(model_name, pytorch_model, metadata)
+        version = data["version"]
+        platform = data["platform"]
+
+        self.model_manager.save_model(model_name, pytorch_model, metadata, version, platform)
         return jsonify("success")
 
     @post_route('/inference')
@@ -44,7 +49,8 @@ class PytorchServing:
         data = request.json
         model_name = data["model_name"]
         model_input = data["data"]
+        version = data["version"]
 
-        result = self.model_manager.model_inference(model_name,model_input)
+        result = self.model_manager.model_inference(model_name,version,model_input)
 
         return jsonify(result)

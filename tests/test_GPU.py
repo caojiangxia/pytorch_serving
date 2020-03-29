@@ -8,4 +8,4 @@ if __name__ == '__main__':
     print("gpu:")
     print(res.get_gpu_info())
     print("recommendation:")
-    print(res.cuda_recommendation())
+    id = res.cuda_recommendation()

@@ -1,2 +1,2 @@
-print("hello world!! here is pytorch serving system!@#!@#!@#!@#")
+print("hello world!! here is pytorch serving system!")
 
