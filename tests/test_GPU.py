@@ -1,6 +1,5 @@
 from pytorch_serving.resource_manager import ResourceManager
 
-
 if __name__ == '__main__':
     res = ResourceManager()
     print("cpu:")
@@ -9,3 +8,4 @@ if __name__ == '__main__':
     print(res.get_gpu_info())
     print("recommendation:")
     id = res.cuda_recommendation()
+    print(id)

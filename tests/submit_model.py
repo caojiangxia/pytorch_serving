@@ -8,84 +8,121 @@ import time
 import numpy as np
 import random
 
-
-class Trainer(object):
-    def __init__(self):
-        raise NotImplementedError
-
-    def update(self, batch):
-        raise NotImplementedError
-
-    def predict(self, batch):
-        raise NotImplementedError
-
-    def load(self, filename):
-        try:
-            checkpoint = torch.load(filename)
-        except BaseException:
-            print("Cannot load model from {}".format(filename))
-            exit()
-        self.model.load_state_dict(checkpoint['model'])
-        self.opt = checkpoint['config']
-
-    def save(self, filename):
-        params = {
-            'model': self.model.state_dict(),
-            'config': self.opt,
-        }
-        try:
-            torch.save(params, filename)
-            print("model saved to {}".format(filename))
-        except BaseException:
-            print("[Warning: Saving failed... continuing anyway.]")
-
-
 class MyTest(nn.Module):
     def __init__(self):
         super(MyTest, self).__init__()
 
-    def forward(self, inp):
-        A = inp[0]
-        B = inp[1]
-        C = inp[2]
-        return A + C
-
-
-class MyTestTrainer(Trainer):
-    def __init__(self,opt):
-        self.model = MyTest()
-        self.opt = opt
-
-    def update(self, batch):
-        return self.model(batch)
-
-
+    def forward(self, inp ,inp2):
+        A = inp
+        B = inp2
+        ans = A + B
+        return ans
 
 class MyTest2(nn.Module):
     def __init__(self):
         super(MyTest2, self).__init__()
 
     def forward(self, A, B):
-        A = torch.tensor(A)
-        B = torch.tensor(B)
-        ans = A + B*2
+        ans = A + B*5
         return ans
 
+class MyTest3(nn.Module):
+    def __init__(self):
+        super(MyTest3, self).__init__()
 
-if __name__ == '__main__':
+    def forward(self, A, B):
+        D = A.tolist()
+        DD = B.tolist()
 
+
+        D[0] += 5
+        DD[1] += 10
+
+        ans = D+DD
+        ans = torch.tensor(ans)
+        return ans
+
+def qqq():
+    A = torch.LongTensor([3])
+    B = torch.LongTensor([5])
     test  = MyTest2()
-    print(test([3],[5]))
+    print(test(A,B))
 
     torch.save(test, "save.pt")
 
     torch_model = torch.load("save.pt")
-    ans = torch_model([3],[5])
+    ans = torch_model(A,B)
     print(ans)
 
-    A = torch.LongTensor([3])
-    B = torch.LongTensor([5])
-    # A = [3]
-    # B = [5]
     ans = torch_model(A, B)
+    print(ans)
+    torch_model.eval()
+    # Export the model
+    torch.onnx.export(torch_model,  # model being run
+                      (A,B),  # model input (or a tuple for multiple inputs)
+                      "3.onnx",  # where to save the model (can be a file or file-like object)
+                      export_params=True,  # store the trained parameter weights inside the model file
+                      opset_version=9,  # the ONNX version to export the model to
+                      do_constant_folding=True,  # whether to execute constant folding for optimization
+                      input_names=["input_node_1","input_node_2"],  # the model's input names
+                      output_names=["output"],  # the model's output names
+                      )
 
+def qq():
+    test = MyTest()
+    A = torch.tensor([1, 2, 3])
+    B = torch.tensor([4, 5, 6])
+    print(test(A,B))
+
+    torch.save(test, "save.pt")
+
+    torch_model = torch.load("save.pt")
+    ans = torch_model(A,B)
+    print(ans)
+
+    ans = torch_model(A,B)
+    print(ans)
+
+    torch_model.eval()
+    # Export the model
+    torch.onnx.export(torch_model,  # model being run
+                      (A,B),  # model input (or a tuple for multiple inputs)
+                      "1.onnx",  # where to save the model (can be a file or file-like object)
+                      export_params=True,  # store the trained parameter weights inside the model file
+                      opset_version=9,  # the ONNX version to export the model to
+                      do_constant_folding=True,  # whether to execute constant folding for optimization
+                      input_names=["input_node_1","input_node_2"],  # the model's input names
+                      output_names=["output"],  # the model's output names
+                      )
+
+def ww():
+    test = MyTest3()
+    A = torch.tensor([1,3])
+    B = torch.tensor([4,9])
+    print(test(A, B))
+
+    torch.save(test, "save.pt")
+
+    torch_model = torch.load("save.pt")
+    ans = torch_model(A, B)
+    print(ans)
+
+    ans = torch_model(A, B)
+    print(ans)
+
+    torch_model.eval()
+    # Export the model
+    torch.onnx.export(torch_model,  # model being run
+                      (A, B),  # model input (or a tuple for multiple inputs)
+                      "5.onnx",  # where to save the model (can be a file or file-like object)
+                      export_params=True,  # store the trained parameter weights inside the model file
+                      opset_version=9,  # the ONNX version to export the model to
+                      do_constant_folding=True,  # whether to execute constant folding for optimization
+                      input_names=["input_node_1", "input_node_2"],  # the model's input names
+                      output_names=["output"],  # the model's output names
+                      )
+
+if __name__ == '__main__':
+    # qq()
+    # qqq()
+    ww()

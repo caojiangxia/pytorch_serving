@@ -1,13 +1,14 @@
 import onnx
 import caffe2.python.onnx.backend as backend
+import numpy as np
 
 # Load the ONNX model
-model = onnx.load("storage/_models/test_submit/test_submit.onnx")
-print(model)
+# model = onnx.load("storage/_models/test_submit/test_submit.onnx")
+model = onnx.load("MyTest2.onnx")
 # Check that the IR is well formed
 onnx.checker.check_model(model)
 
-print(model)
+
 # Print a human readable representation of the graph
 onnx.helper.printable_graph(model.graph)
 
@@ -39,6 +40,50 @@ for input in model.graph.input:
             }
             signature["outputs"].append(output_meta)
 
-print(signature)
+# print(signature)
 # Build model executor
 executor = backend.prepare(model)
+
+
+NUMPY_DTYPE_MAP = {}
+
+from onnx import TensorProto as tp
+NUMPY_DTYPE_MAP.update({
+        tp.FLOAT: "float32",
+        tp.UINT8: "uint8",
+        tp.INT8: "int8",
+        tp.INT32: "int32",
+        tp.INT64: "int64",
+        tp.DOUBLE: "float64",
+        tp.UINT32: "uint32",
+        tp.UINT64: "uint64"
+})
+
+input_data = {
+    "input_node_1" : [3],
+    "input_node_2" : [5]
+}
+
+inputs_signature = signature["inputs"]
+inputs = []
+if isinstance(input_data, dict):
+    for input_meta in inputs_signature:
+        name = input_meta["name"]
+        onnx_type = input_meta["dtype"]
+        if name not in input_data:
+            print("Cannot find input name: {}".format(name))
+        else:
+            data_item = input_data[name]
+            if not isinstance(data_item, np.ndarray):
+                data_item = np.asarray(data_item)
+            if onnx_type in NUMPY_DTYPE_MAP:
+                numpy_type = NUMPY_DTYPE_MAP[onnx_type]
+                if numpy_type != data_item.dtype:
+                    data_item = data_item.astype(numpy_type)
+            inputs.append(data_item)
+else:
+    raise Exception("Invalid json input data")
+
+outputs = executor.run(inputs)
+
+print(outputs)

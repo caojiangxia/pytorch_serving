@@ -10,3 +10,9 @@ result = requests.post(endpoint, json=input_data).json()
 # result = requests.get(endpoint).json()
 
 print(result)
+
+
+
+
+# bash bin/manage debug
+# CUDA_VISIBLE_DEVICES=3 bash bin/manage debug
