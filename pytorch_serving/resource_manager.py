@@ -39,7 +39,7 @@ class ResourceManager:
         :return:
         '''
         gpulist = []
-        GPUtil.showUtilization()
+        # GPUtil.showUtilization()
 
         remain = 0
         recommendation_id = 0

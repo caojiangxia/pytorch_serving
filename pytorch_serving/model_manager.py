@@ -33,7 +33,7 @@ class ModelManager:
             self._do_save_model(model_path + "/" + str(version), pytorch_model, metadata)
         # elif platform is "torch_onnx":
         #    self._change_pytorch_model_to_onnx(model_path+ "/" + model_name, pytorch_model, metadata)
-        self.load_models(model_name,model_path, metadata, platform)
+        self.load_models(model_name,model_path, metadata,version,platform)
 
     def delete_model(self):
         """
@@ -42,12 +42,18 @@ class ModelManager:
         """
         pass
 
-    def load_models(self,model_name,model_path,metadata, platform):
+    def load_models(self,model_name,model_path, version, platform):
         """
         load one by one
         """
-        self.ModelServer[model_name] = PytorchInferenceService(model_name, model_path, metadata, self.resource_manager.cuda_recommendation())
-
+        if platform == "torch":
+            self.ModelServer[model_name] = PytorchInferenceService(model_name, model_path, self.resource_manager.cuda_recommendation(),version)
+        if platform == "torch_onnx":
+            if model_name in self.ModelServer.keys():
+                self.ModelServer[model_name].dynamic_load(model_path + "/" + str(version) + ".onnx",self.resource_manager.cuda_recommendation(),version)
+            else :
+                self.ModelServer[model_name] = PytorchOnnxInferenceService(model_name, model_path,
+                                                                   self.resource_manager.cuda_recommendation(), [str(version)])
     def model_inference(self, model_name, version, data):
         if self.ModelServer.get(model_name, None) is None :
             return "Serving is not loaded the model, please check the model name"
@@ -71,6 +77,7 @@ class ModelManager:
                           output_names=metadata["output_names"],  # the model's output names
                           )
         json.dump(metadata,open(model_path+".meta","w",encoding="utf-8"))
+
 
     def _do_save_model(self,model_path,pytorch_model,metadata):
         pytorch_model.eval()

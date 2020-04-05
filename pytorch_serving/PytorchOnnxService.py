@@ -5,20 +5,22 @@ import time
 import json
 import numpy as np
 
-from collections import namedtuple
+import onnx
+import caffe2.python.onnx.backend as backend
 
+from collections import namedtuple
+from guniflask.context import service
 from pytorch_serving.AbstractService import AbstractInferenceService
 
 # Lazy init
 NUMPY_DTYPE_MAP = {}
-
 
 class PytorchOnnxInferenceService(AbstractInferenceService):
     """
     The service to load ONNX model and make inference with pytorch-caffe2 backend.
     """
 
-    def __init__(self, model_name, model_base_path, metadata, use_cuda=False, verbose=False):
+    def __init__(self, model_name, model_base_path, use_cuda=False, version_list=-1):
         """
         Initialize the service.
 
@@ -35,53 +37,52 @@ class PytorchOnnxInferenceService(AbstractInferenceService):
 
         self.model_name = model_name
         self.model_base_path = model_base_path
-        self.metadata = metadata
-        self.model_version_list = []
-        self.model_version_dict = {}
-        self.model_dict = {}
-        self.executor_dict = {}
-        self.model_graph_signature_dict = {}
-
-        # This property is for index.html
-        self.model_graph_signature = self.model_graph_signature_dict
-
-        self.platform = "PyTorch_ONNX"
-        self.verbose = verbose
-
+        self.platform = "torch_onnx"
+        self.use_cuda = use_cuda
         # Find available models
-        model_path_list = []
-        #print("qweqwe",model_base_path)
+        self.model_path_list = []
+        self.model_version_list = []
+        self.model_version2id = {}
+        self.model_version2model = {}
+        self.model_version2signature = {}
+        self.model_version2executor = {}
+        self.model_version2metadata = {}
+
         if os.path.isdir(self.model_base_path):
             for filename in os.listdir(self.model_base_path):
                 if filename.endswith(".onnx"):
                     path = os.path.join(self.model_base_path, filename)
-                    logging.info("Found onnx model: {}".format(path))
-                    print("Found onnx model: {}".format(path))
-                    model_path_list.append(path)
-            if len(model_path_list) == 0:
+                    if filename[:-5] in version_list :
+                        logging.info("Found onnx model: {}".format(path))
+                        print("Found onnx model: {}".format(path))
+                        self.model_path_list.append(path)
+                        self.model_version_list.append(filename[:-5])
+
+            if len(self.model_path_list) == 0:
                 logging.error("No onnx model found in {}".format(self.model_base_path))
         elif os.path.isfile(self.model_base_path):
             logging.info("Found onnx model: {}".format(self.model_base_path))
-            model_path_list.append(self.model_base_path)
+            self.model_path_list.append(self.model_base_path)
+            if version_list == -1:
+                print("parameter should have version label!")
+            else :
+                self.model_version_list.append(version_list[0])
         else:
             raise Exception("Invalid model_base_path: {}".format(self.model_base_path))
-
         # Load available models
-        count = 1
-        for model_path in model_path_list:
+        for id, model_path in enumerate(self.model_path_list):
             try:
-                version = str(count)
-                model, executor, signature = self.load_model(model_path)
+                model, executor, signature, metadata = self.load_model(model_path)
                 logging.info("Load onnx model: {}, signature: {}".format(
                     model_path, json.dumps(signature)))
                 print("Load onnx model: {}, signature: {}".format(
                     model_path, json.dumps(signature)))
-                self.model_version_dict[version] = model_path
-                self.model_dict[version] = model
-                self.executor_dict[version] = executor
-                self.model_graph_signature_dict[version] = signature
-                self.model_version_list.append(version)
-                count += 1
+                version = self.model_version_list[id]
+                self.model_version2id[version] = id
+                self.model_version2model[version] = model
+                self.model_version2executor[version] = executor
+                self.model_version2signature[version] = signature
+                self.model_version2metadata[version] = metadata
             except Exception as e:
                 traceback.print_exc()
 
@@ -99,13 +100,32 @@ class PytorchOnnxInferenceService(AbstractInferenceService):
             tp.UINT64: "uint64"
         })
 
+    def dynamic_load(self, model_path, use_cuda, version):
+        self.use_cuda = use_cuda
+        version = str(version)
+        model, executor, signature, metadata = self.load_model(model_path)
+        print("Dynamic load onnx model: {}, signature: {}".format(
+            model_path, json.dumps(signature)))
+        if version in self.model_version_list:
+            pass
+        else :
+            self.model_version_list.append(version)
+            self.model_path_list.append(model_path)
+            self.model_version2id[version] = len(self.model_version_list) - 1
+        self.model_version2model[version] = model
+        self.model_version2executor[version] = executor
+        self.model_version2signature[version] = signature
+        self.model_version2metadata[version] = metadata
+
     def load_model(self, model_path):
-        import onnx
-        import caffe2.python.onnx.backend as backend
+
         # Load model
-        print(model_path)
-        model = onnx.load(model_path)
-        print(model)
+        try :
+            model = onnx.load(model_path)
+        except :
+            print("model is not load on server!!!")
+
+        metadata = json.load(open(model_path[:-4] + "meta","r",encoding="utf-8"))
         onnx.checker.check_model(model)
         # Genetate signature
         signature = {"inputs": [], "outputs": []}
@@ -135,27 +155,36 @@ class PytorchOnnxInferenceService(AbstractInferenceService):
                               for d in info.shape.dim]
                 }
                 signature["outputs"].append(output_meta)
-
         # Build model executor
-        executor = backend.prepare(model)
+        executor = backend.prepare(model,device="CUDA:"+str(self.use_cuda))
+        # executor = backend.prepare(model, device="CUDA:0")
+        # executor = backend.prepare(model)
+        return model, executor, signature, metadata
 
-        return model, executor, signature
+    def match_metadata(self,input_data, metadata):
+        """
+        这里稍微有一些没有确定的地方。。。。主要在于输入的长度可能是变动的，这个时候我们是不是在metadata里面用-1来表示不定长比较好一些？
+        :param input_data:
+        :param metadata:
+        :return:
+        """
+        return 1
 
-    def inference(self, json_data):
+    def inference(self, version, input_data):
         # Get version
-        model_version = str(json_data.get("model_version", ""))
+        model_version = version
+        model_version = str(model_version)
         if model_version.strip() == "":
             model_version = self.model_version_list[-1]
 
-        input_data = json_data.get("data", "")
-        if str(model_version) not in self.model_version_dict or input_data == "":
+        if str(model_version) not in self.model_version_list or input_data == "":
             logging.error("No model version: {} to serve".format(model_version))
             return "Fail to request the model version: {} with data: {}".format(
                 model_version, input_data)
         else:
-            logging.debug("Inference with json data: {}".format(json_data))
+            logging.debug("Inference with json data: {}".format(input_data))
 
-        signature = self.model_graph_signature_dict[model_version]
+        signature = self.model_version2signature[model_version]
         inputs_signature = signature["inputs"]
         inputs = []
         if isinstance(input_data, dict):
@@ -177,12 +206,14 @@ class PytorchOnnxInferenceService(AbstractInferenceService):
             raise Exception("Invalid json input data")
 
         start_time = time.time()
-        executor = self.executor_dict[model_version]
+        executor = self.model_version2executor[model_version]
         outputs = executor.run(inputs)
 
         result = {}
         for idx, output_meta in enumerate(signature["outputs"]):
             name = output_meta["name"]
-            result[name] = outputs[idx]
+            print(outputs[idx])
+            result[name] = outputs[idx].tolist()
         logging.debug("Inference result: {}".format(result))
+
         return result
