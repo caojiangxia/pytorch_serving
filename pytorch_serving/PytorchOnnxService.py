@@ -77,12 +77,12 @@ class PytorchOnnxInferenceService(AbstractInferenceService):
                     model_path, json.dumps(signature)))
                 print("Load onnx model: {}, signature: {}".format(
                     model_path, json.dumps(signature)))
-                version = self.model_version_list[id]
-                self.model_version2id[version] = id
-                self.model_version2model[version] = model
-                self.model_version2executor[version] = executor
-                self.model_version2signature[version] = signature
-                self.model_version2metadata[version] = metadata
+                current_version = self.model_version_list[id]
+                self.model_version2id[current_version] = id
+                self.model_version2model[current_version] = model
+                self.model_version2executor[current_version] = executor
+                self.model_version2signature[current_version] = signature
+                self.model_version2metadata[current_version] = metadata
             except Exception as e:
                 traceback.print_exc()
 

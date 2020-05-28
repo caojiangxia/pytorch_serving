@@ -37,7 +37,7 @@ class PytorchServing:
         metadata = data["meta_data"]
         pytorch_model = data["pytorch_model"]
         model_name = data["model_name"]
-        version = data["version"]
+        version = str(data["version"])
         platform = data["platform"]
 
         self.model_manager.save_model(model_name, pytorch_model, metadata, version, platform)
@@ -47,7 +47,7 @@ class PytorchServing:
     def load_model(self):
         data = request.json
         model_name = data["model_name"]
-        version = data["version"]
+        version = str(data["version"])
         platform = data["platform"]
         model_path = self.path_utils.model_data_dir(model_name)
         self.model_manager.load_models(model_name, model_path, version, platform)
@@ -67,7 +67,7 @@ class PytorchServing:
         data = request.json
         model_name = data["model_name"]
         model_input = data["data"]
-        version = data["version"]
+        version = str(data["version"])
 
         result = self.model_manager.model_inference(model_name,version,model_input)
 

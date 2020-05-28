@@ -1,10 +1,10 @@
 import onnx
 import caffe2.python.onnx.backend as backend
 import numpy as np
-
+import json
 # Load the ONNX model
 # model = onnx.load("storage/_models/test_submit/test_submit.onnx")
-model = onnx.load("MyTest2.onnx")
+model = onnx.load("7.onnx")
 # Check that the IR is well formed
 onnx.checker.check_model(model)
 
@@ -40,6 +40,10 @@ for input in model.graph.input:
             }
             signature["outputs"].append(output_meta)
 
+
+print("signature: {}".format(json.dumps(signature)))
+
+
 # print(signature)
 # Build model executor
 executor = backend.prepare(model)
@@ -60,9 +64,10 @@ NUMPY_DTYPE_MAP.update({
 })
 
 input_data = {
-    "input_node_1" : [3],
-    "input_node_2" : [5]
+    "input_node_1" : [[1,1]]
 }
+
+
 
 inputs_signature = signature["inputs"]
 inputs = []
