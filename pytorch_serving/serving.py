@@ -10,7 +10,11 @@ from pytorch_serving.model_manager import ModelManager
 from pytorch_serving.resource_manager import ResourceManager
 from pytorch_serving.pathutils import PathUtils
 import json
+
+from pytorch_serving.Response import ResBody, ResponseCode, NotFoundException
+
 import torch
+import requests
 
 
 @blueprint('/api')
@@ -53,7 +57,10 @@ class PytorchServing:
         self.model_manager.load_models(model_name, model_path, version, platform)
 
         self._save_now()
-        return jsonify("success")
+
+        res = ResBody()
+        res.update("success")
+        return res.body
 
     @post_route('/inference')
     def inference(self):
@@ -65,13 +72,112 @@ class PytorchServing:
         """
 
         data = request.json
+
         model_name = data["model_name"]
         model_input = data["data"]
+        if request.json.get('callback', None) is not None :
+            model_input["callback"] = request.json.get('callback')
+
         version = str(data["version"])
 
         result = self.model_manager.model_inference(model_name,version,model_input)
 
-        return jsonify(result)
+        return result
+
+    @post_route('/Description')
+    def Description(self):
+        """
+        1. 模型的名称
+        2. 模型的输入
+
+        json
+        """
+        data = request.json
+
+        data["model_name"] = "Description"
+        model_name = data["model_name"]
+        model_input = data["data"]
+        if request.json.get('callback', None) is not None:
+            model_input["callback"] = request.json.get('callback')
+        version = str(data["version"])
+        result = self.model_manager.model_inference(model_name, version, model_input)
+        return result
+
+    @post_route('/Synonym')
+    def Synonym(self):
+        """
+        1. 模型的名称
+        2. 模型的输入
+
+        json
+        """
+        data = request.json
+
+        data["model_name"] = "Synonym"
+        model_name = data["model_name"]
+        model_input = data["data"]
+        if request.json.get('callback', None) is not None:
+            model_input["callback"] = request.json.get('callback')
+        version = str(data["version"])
+        result = self.model_manager.model_inference(model_name, version, model_input)
+        return result
+
+    @post_route('/Hyponym')
+    def Hyponym(self):
+        """
+        1. 模型的名称
+        2. 模型的输入
+
+        json
+        """
+        data = request.json
+
+        data["model_name"] = "Hyponym"
+        model_name = data["model_name"]
+        model_input = data["data"]
+        if request.json.get('callback', None) is not None:
+            model_input["callback"] = request.json.get('callback')
+        version = str(data["version"])
+        result = self.model_manager.model_inference(model_name, version, model_input)
+        return result
+
+    @post_route('/Document-recognition')
+    def jida(self):
+        """
+        1. 模型的名称
+        2. 模型的输入
+
+        json
+        """
+        data = request.json
+
+        data["model_name"] = "jida"
+        model_name = data["model_name"]
+        model_input = data["data"]
+        if request.json.get('callback', None) is not None:
+            model_input["callback"] = request.json.get('callback')
+        version = str(data["version"])
+        result = self.model_manager.model_inference(model_name, version, model_input)
+        return result
+
+    @post_route('/Document-discrimination')
+    def Bowen(self):
+        """
+        1. 模型的名称
+        2. 模型的输入
+
+        json
+        """
+        data = request.json
+
+        data["model_name"] = "Bowen"
+        model_name = data["model_name"]
+        model_input = data["data"]
+        if request.json.get('callback', None) is not None:
+            model_input["callback"] = request.json.get('callback')
+        version = str(data["version"])
+        result = self.model_manager.model_inference(model_name, version, model_input)
+        return result
 
     @post_route('/show')
     def show(self):
@@ -82,7 +188,9 @@ class PytorchServing:
         all_model_information = {}
         for model_name in self.model_manager.ModelServer:
             all_model_information[model_name] = self.model_manager.ModelServer[model_name].model_version_list
-        return jsonify(all_model_information)
+        res = ResBody()
+        res.update(data={"result": all_model_information})
+        return res.body
 
     def _save_now(self):
         """

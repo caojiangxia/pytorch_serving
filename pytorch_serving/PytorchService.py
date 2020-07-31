@@ -8,9 +8,12 @@ import torch
 from guniflask.context import service
 from pytorch_pretrained_bert.modeling import BertForSequenceClassification, BertConfig
 from pytorch_serving.Gongwen import GongwenTokenizer
-
+import pytorch_serving.Desc.utils.tokenizer as Desctokenizer
+import pytorch_serving.Desc.utils.score as Descscore
+import pytorch_serving.Desc.utils.torch_utils as Desctorch_utils
+from pytorch_serving.Desc.model import RelationModel as DescRelationModel
+import requests
 class PytorchInferenceService:
-
     def __init__(self, model_name, model_base_path, use_cuda=False, version_list=-1):
         """
         :param model_name:
@@ -67,12 +70,19 @@ class PytorchInferenceService:
             except Exception as e:
                 traceback.print_exc()
         """
-        self.dynamic_load("storage/_models/Bowen/3",use_cuda,3)
 
-    def dynamic_load(self, model_path, use_cuda, version):
+        print(model_base_path + "/" + version_list[0], "torch_loading")
+        self.dynamic_load(model_base_path + "/" + version_list[0] ,use_cuda, version_list[0])
+
+    def dynamic_load(self, model_path, use_cuda, version ):
         self.use_cuda = use_cuda
         version = str(version)
-        model, metadata = self.load_model(model_path,use_cuda)
+
+        if self.model_name == "Bowen" :
+            model, tokenizer, metadata = self.Bowen_load_model(model_path,use_cuda)
+        if self.model_name == "Description" or self.model_name == "Synonym" or self.model_name == "Hyponym":
+            model, tokenizer, metadata = self.Desc_load_model(model_path, use_cuda)
+
         print("Dynamic load pytorch model: {}".format(
             model_path))
         if version in self.model_version_list:
@@ -85,10 +95,10 @@ class PytorchInferenceService:
         self.model_version2cuda[version]= use_cuda
         self.model_version2model[version] = model
         self.model_version2metadata[version] = metadata
-        self.model_version2Tokenizer[version] = GongwenTokenizer(model_path)
+        self.model_version2Tokenizer[version] = tokenizer
 
 
-    def load_model(self,model_path,use_cuda):
+    def Bowen_load_model(self,model_path,use_cuda):
         """
         model = torch.load(model_path)
         metadata = json.load(open(model_path[:-3] + ".meta","r",encoding="utf-8"))
@@ -99,10 +109,28 @@ class PytorchInferenceService:
         return model, metadata
         """
         model = BertForSequenceClassification.from_pretrained(model_path, num_labels=2).cuda(use_cuda)
-        metadata = json.load(open(model_path[:-1] + "2.meta", "r", encoding="utf-8"))
+        # metadata = json.load(open(model_path[:-1] + "2.meta", "r", encoding="utf-8"))
+        metadata = {}
+        tokenizer = GongwenTokenizer(model_path)
+        return model, tokenizer, metadata
 
-        return model, metadata
 
+    def Desc_load_model(self,model_path,use_cuda):
+
+        model_file = model_path + '/best_model.pt'
+        opt = Desctorch_utils.load_config(model_file) 
+        if "ema" not in opt:
+            opt['ema'] = 0.999
+        opt['bert_model'] = '/home/kdsec/serving/storage/_models/roberta/'
+        model = DescRelationModel(opt, 10)
+        model.load(model_file)
+
+        model.model.cuda(use_cuda)
+        tokenizer = Desctokenizer.Tokenizer(model_path + '/vocab.txt', do_lower_case=True)
+        # model = BertForSequenceClassification.from_pretrained(model_path, num_labels=2).cuda(use_cuda)
+        # metadata = json.load(open(model_path[:-1] + "2.meta", "r", encoding="utf-8"))
+        metadata = {}
+        return model, tokenizer, metadata
 
     def match_metadata(self,input_data, metadata):
         """
@@ -114,37 +142,79 @@ class PytorchInferenceService:
         return 1
 
     def inference(self, version, input_data):
-        # Get version
-        model_version = str(version)
-        if model_version.strip() == "":
-            model_version = self.model_version_list[-1]
-        if str(model_version) not in self.model_version_list:
-            logging.error("No model version: {} to serve".format(model_version))
-        else:
-            logging.debug("Inference with json data: {}".format(input_data))
+        if self.model_name == "Bowen":
+            # Get version
+            model_version = str(version)
+            if model_version.strip() == "":
+                model_version = self.model_version_list[-1]
+            if str(model_version) not in self.model_version_list:
+                logging.error("No model version: {} to serve".format(model_version))
+            else:
+                logging.debug("Inference with json data: {}".format(input_data))
 
 
-        if self.match_metadata(input_data, self.model_version2metadata[version]) is 0:
-            logging.error("input_data is not match with metadata! input_data:{}, metadata:{}".format(input_data,self.model_metadata[self.model_version_list[model_version]]))
+            if self.match_metadata(input_data, self.model_version2metadata[version]) is 0:
+                logging.error("input_data is not match with metadata! input_data:{}, metadata:{}".format(input_data,self.model_metadata[self.model_version_list[model_version]]))
 
-        executor = self.model_version2model[model_version]
+            executor = self.model_version2model[model_version]
 
-        input_data = self.model_version2Tokenizer[model_version].generate(input_data)
+            input_data = self.model_version2Tokenizer[model_version].generate(input_data)
 
-        all_input_ids = torch.tensor(input_data["input_ids"], dtype=torch.long).cuda(self.model_version2cuda[model_version])
-        all_input_mask = torch.tensor(input_data["input_mask"], dtype=torch.long).cuda(self.model_version2cuda[model_version])
-        all_segment_ids = torch.tensor(input_data["segment_ids"], dtype=torch.long).cuda(self.model_version2cuda[model_version])
+            all_input_ids = torch.tensor(input_data["input_ids"], dtype=torch.long).cuda(self.model_version2cuda[model_version])
+            all_input_mask = torch.tensor(input_data["input_mask"], dtype=torch.long).cuda(self.model_version2cuda[model_version])
+            all_segment_ids = torch.tensor(input_data["segment_ids"], dtype=torch.long).cuda(self.model_version2cuda[model_version])
 
-        logits = executor(all_input_ids,all_segment_ids,all_input_mask)
+            logits = executor(all_input_ids,all_segment_ids,all_input_mask)
 
-        preds = []
-        preds.append(logits.detach().cpu().numpy())
-        preds = np.argmax(logits.detach().cpu().numpy(), axis=1)
-        output = preds.tolist()
-        ret = []
-        for i in output:
-            if i == 0 :
-                ret.append("yes")
-            else :
-                ret.append("no")
-        return ret # 需要注意的是这里的输出最好是list格式的，不能为tensor，要不然在jsonify的时候会容易报错。这个到时候就是我们的写的规范了。
+            preds = []
+            preds.append(logits.detach().cpu().numpy())
+            preds = np.argmax(logits.detach().cpu().numpy(), axis=1)
+            output = preds.tolist()
+            ret = []
+            for i in output:
+                if i == 0 :
+                    ret.append("yes")
+                else :
+                    ret.append("no")
+            return ret # 需要注意的是这里的输出最好是list格式的，不能为tensor，要不然在jsonify的时候会容易报错。这个到时候就是我们的写的规范了。
+
+        if self.model_name == "Description" or self.model_name == "Synonym" or self.model_name == "Hyponym":
+            print(input_data)
+            subject = input_data['subject']
+            sentence_list = input_data['sentences']
+            batch_size = 8
+            data = [sentence_list[i:i + batch_size] for i in range(0, len(sentence_list), batch_size)]
+            results = []
+
+            model_version = str(version)
+            if model_version.strip() == "":
+                model_version = self.model_version_list[-1]
+
+            if str(model_version) not in self.model_version_list:
+                logging.error("No model version: {} to serve".format(model_version))
+            else:
+                logging.debug("Inference with subject: {}".format(subject))
+
+            if self.match_metadata(input_data, self.model_version2metadata[version]) is 0:
+                logging.error("input_data is not match with metadata! input_data:{}, metadata:{}".format(input_data,
+                                                                                                         self.model_metadata[
+                                                                                                             self.model_version_list[
+                                                                                                            model_version]]))
+            executor = self.model_version2model[model_version]
+
+            for sents in data:
+                results.extend(
+                    Descscore.extract_items(sents, subject, self.model_version2Tokenizer[model_version], executor, user_cuda = self.model_version2cuda[model_version]))
+
+
+            res = {}
+            res["res"] = results
+            res["keyword"] = input_data['subject']
+            res["expand_token"] = ""
+            res["model_name"] = self.model_name
+
+            if "callback" in input_data:
+                callback_url = input_data['callback']
+                requests.post(callback_url,json = res,headers = {"Content-Type": "application/json"})
+
+            return results

@@ -3,12 +3,13 @@
 from guniflask.context import service
 from pytorch_serving.pathutils import PathUtils
 from pytorch_serving.resource_manager import ResourceManager
-from pytorch_serving.PytorchOnnxService import PytorchOnnxInferenceService
+# from pytorch_serving.PytorchOnnxService import PytorchOnnxInferenceService
 from pytorch_serving.TensorflowService import TensorflowInferenceService
 from pytorch_serving.PytorchService import PytorchInferenceService
 import torch
 import torch.onnx
 import json
+from pytorch_serving.Response import ResBody, ResponseCode, NotFoundException
 
 @service
 class ModelManager:
@@ -54,11 +55,14 @@ class ModelManager:
                 self.ModelServer[model_name] = PytorchInferenceService(model_name, model_path, self.resource_manager.cuda_recommendation(),[str(version)])
 
         if platform == "torch_onnx":
+            pass
+            """
             if model_name in self.ModelServer.keys():
                 self.ModelServer[model_name].dynamic_load(model_path + "/" + str(version) + ".onnx",self.resource_manager.cuda_recommendation(),version)
             else :
                 self.ModelServer[model_name] = PytorchOnnxInferenceService(model_name, model_path,
                                                                    self.resource_manager.cuda_recommendation(), [str(version)])
+            """
 
         if platform == "tensorflow":
             if model_name in self.ModelServer.keys():
@@ -69,9 +73,17 @@ class ModelManager:
                                                                    self.resource_manager.cuda_recommendation(), [str(version)])
 
     def model_inference(self, model_name, version, data):
-        if self.ModelServer.get(model_name, None) is None :
-            return "Serving is not loaded the model, please check the model name"
-        return self.ModelServer[model_name].inference(version,data)
+        res = ResBody()
+        try:
+            if self.ModelServer.get(model_name, None) is None :
+                result = "Serving is not loaded the model, please check the model name"
+                res.update(data=None, code=ResponseCode.ERROR, msg=500)
+            else:
+                result = self.ModelServer[model_name].inference(version,data)
+                res.update(data={"result" : result})
+        except Exception as e:
+            res.update(data=None, code=ResponseCode.ERROR, msg=500)
+        return res.body
 
     def _change_pytorch_model_to_onnx(self,model_path,pytorch_model,metadata):
         pytorch_model.eval()
